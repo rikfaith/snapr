@@ -1,0 +1,102 @@
+#!/usr/bin/python
+
+import re
+import sys
+import os
+import glob
+from optparse import OptionParser
+
+levels = [ [ "hourly", 6 ],
+           [ "daily", 7 ],
+           [ "weekly", 4 ],
+           [ "monthly", 12 ],
+           [ "yearly", 10 ] ]
+
+prefixes = [l[0] for l in levels]
+
+print prefixes
+
+def store_value(option, opt_str, value, parser):
+    level = parser.rargs[0]
+    newval = parser.rargs[1]
+    idx = None
+    for i in range(0,len(levels)):
+        if re.match(levels[i][0], level):
+            idx = i
+    if idx == None:
+        print "%s is not a valid level" % level
+        print "Valid levels are:"
+        for l in levels:
+            print "  %s" % l[0]
+        sys.exit(0)
+    else:
+        levels[idx] = [level, newval]
+
+if __name__ == "__main__":
+    parser = OptionParser()
+    parser.add_option("-v", "--verbose", dest="verbose",
+                      action="store_true", default=False,
+                      help="Verbose")
+    parser.add_option("-f", "--force", dest="force",
+                      action="store_true", default=False,
+                      help="Force, avoiding consistency checks")
+    parser.add_option("-r", "--rotate", dest="rotate",
+                      action="store_true", default=False,
+                      help="Rotate standard directories")
+    parser.add_option("-l", "--level", nargs=2, action="callback",
+                      callback=store_value, dest="level")
+    parser.add_option("-d", "--dir", dest="dir",
+                      help="Destination directory")
+    (options, args) = parser.parse_args()
+
+    parser.print_help()
+
+    # cd to working directory; create if non-existent
+    if options.dir:
+        try:
+            os.chdir(options.dir)
+        except:
+            try:
+                os.makedirs(options.dir)
+            except:
+                print "Cannot create path: %s" % options.dir
+                sys.exit(0)
+            try:
+                os.chdir(options.dir)
+            except:
+                print "Cannot chdir to %s" % options.dir
+                sys.exit(0)
+
+    # check working directory for stuff
+    if not options.force:
+        expected=0
+        unexpected=0
+        for filename in glob.iglob("*"):
+            if not os.path.isdir(filename):
+                unexpected += 1
+                continue
+            r = [filename \
+                 for p in prefixes \
+                 for m in [re.match(p, filename)] if m]
+            if r:
+                expected += 1
+            else:
+                unexpected += 1
+        if unexpected > expected * 3:
+            print "%d unexpected; %d expected" % (unexpected, expected)
+            print "Use -f to force use of this directory"
+            sys.exit(0)
+
+    # Rotate
+    for l in levels:
+        print l
+        count = count_level(l[0]
+
+    sys.exit(0)
+
+    if not len(args):
+        parser.print_help()
+        sys.exit(0)
+
+
+    sys.exit(0)
