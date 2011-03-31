@@ -4,24 +4,231 @@ import re
 import sys
 import os
 import glob
+import time
+import select
+from subprocess import *
 from optparse import OptionParser
 
-levels = [ [ "hourly", 6 ],
-           [ "daily", 7 ],
-           [ "weekly", 4 ],
-           [ "monthly", 12 ],
-           [ "yearly", 10 ] ]
+timestampbase = ".snapr"
+levels = [ [ "hourly",   6, "%Y.%j.%H" ],
+           [ "daily",    7, "%Y.%j" ],
+           [ "weekly",   4, "%Y.%U" ],
+           [ "monthly", 12, "%Y.%m" ],
+           [ "yearly",  10, "%Y" ] ]
 
 prefixes = [l[0] for l in levels]
 
+do_nothing = False
+do_verbose = False
+do_trace = False
+default_mode = 0755
+default_max_dir = 99
+
+rsyncresults = { 0: "Success",
+                 1: "Syntax error",
+                 2: "Protocol incompatibility",
+                 3: "Selection error",
+                 4: "Not supported",
+                 5: "Protocol initialization error",
+                 6: "Logging error",
+                 10: "Socket error",
+                 11: "File error",
+                 12: "Protocol error",
+                 13: "Diagnostics error",
+                 14: "IPC error",
+                 20: "Caught signal",
+                 21: "Subprocess error",
+                 22: "Memory allocation error",
+                 23: "Partial transfer error",
+                 24: "Partial transfer, file vanished",
+                 25: "Limited deletions",
+                 30: "Timeout in data send/receive",
+                 35: "Timeout waiting for daemon connection" }
+
 print prefixes
+
+def second_timestamps(option, opt_str, value, parser):
+    log("Setting second timestamps")
+    for i in range(0, len(levels)):
+        levels[i][2] = '%Y.%m.%d.%H.%M.%S'
+
+def log(text):
+    if do_verbose:
+        print text
+
+def trace(text):
+    if do_trace:
+        print text
+
+def mkdir(dirname):
+    log("Making new directory: %s" % dirname)
+    if do_nothing:
+        return
+    try:
+        os.mkdir(dirname, default_mode)
+    except os.error, e:
+        print "Cannot mkdir:", e
+        sys.exit(1)
+
+def rmtree(dirname):
+    log("Removing directory tree: %s" % dirname)
+    if do_nothing:
+        return
+    try:
+        retcode = call("rm -rf %s" % dirname, shell=True)
+        if retcode < 0:
+            log("Child was terminated by signal %d" % -retcode)
+        else:
+            log("Child returned %d" % retcode)
+    except os.error, e:
+        print "Removal of %s failed:" % dirname, e
+        sys.exit(1)
+
+def rename(old,new):
+    log("Moving %s to %s" % (old, new))
+    if do_nothing:
+        return
+    if os.path.isdir(new):
+        print "Target of rename exists: %s" % new
+        sys.exit(1)
+    try:
+        os.rename(old, new)
+    except os.error, e:
+        print "Cannot rename:", e
+        sys.exit(1)
+
+def get_directory_list(level):
+    (level_name, level_count, level_format) = levels[level]
+    dirs = []
+    for i in range(0, default_max_dir):
+        dirname = level_name + ".%d" % i
+        if os.path.isdir(dirname):
+            trace("Found %s" % dirname)
+            dirs.append(dirname)
+    return dirs
+
+def remove_oldest_directory(level):
+    dirs = get_directory_list(level)
+    if len(dirs) < 1:
+        print "No directories in list at level %d" % level
+        sys.exit(1)
+    oldest = dirs[len(dirs) - 1]
+    rmtree(oldest)
+
+def add_timestamp(level, name):
+    (level_name, level_count, level_format) = levels[level]
+    timestamp = time.strftime(level_format)
+    timestampfile = os.path.join(name, timestampbase)
+    try:
+        f = open(timestampfile, 'a')
+    except IOError, e:
+        print "Could not open %s: " % timestampfile, e
+        sys.exit(0)
+    except:
+        print "Could not open %s: " % timestampfile, sys.exc_info()[0]
+        sys.exit(0)
+    print >>f, level_name, timestamp, time.ctime()
+    f.close()
+
+def get_timestamp(level):
+    (level_name, level_count, level_format) = levels[level]
+    timestampfile = os.path.join(level_name + '.0', timestampbase)
+    try:
+        with open(timestampfile, 'r') as f:
+            for line in f.readlines():
+                (name, timestamp) = (line + " unknown unknown").split()[0:2]
+                log("Timestamp for %s is %s" % (name, timestamp))
+                if name == level_name:
+                    return timestamp
+    except:
+        pass
+    return 'unknown'
+
+def rename_oldest_directory(level):
+    level_name = levels[level][0]
+    next_level_name = levels[level+1][0]
+    dirs = get_directory_list(level)
+    if len(dirs) < 1:
+        print "No directories in list at level %d" % level
+        sys.exit(1)
+    oldest = dirs[len(dirs) - 1]
+    rename(oldest, next_level_name + '.0')
+    add_timestamp(level+1, next_level_name + '.0')
+
+def shift_directories(level):
+    level_name = levels[level][0]
+    dirs = get_directory_list(level)
+    if len(dirs) < 1:
+        print "No directories in list at level %d" % level
+        sys.exit(1)
+    targets = []
+    for i in range(0, len(dirs)):
+        target = level_name + (".%d" % (i + 1))
+        trace("Using target: %s" % target)
+        targets.append(target)
+    # The target is either identical to dirs, or there is a free dir
+    # This is order n^2, but n is small
+    # This will fail if do_nothing is True
+    for j in range(0, len(dirs)):
+        for i in range(0, len(dirs)):
+            if dirs[i] == targets[i]:
+                trace("Match for target %s" % targets[i])
+                continue
+            if os.path.isdir(targets[i]):
+                trace("Existing target %s" % targets[i])
+                continue
+            rename(dirs[i], targets[i])
+
+def time_has_passed(level):
+    (level_name, level_count, level_format) = levels[level]
+    current_timestamp = time.strftime(level_format)
+    dir_timestamp = get_timestamp(level)
+    if current_timestamp == dir_timestamp:
+        log("Timestamps match: %s, %s" % (current_timestamp, dir_timestamp))
+        return False
+    log("Timestamps do not match: %s, %s" % (current_timestamp, dir_timestamp))
+    return True
+
+def rotate_levels(level):
+    (level_name, level_count, level_format) = levels[level]
+    log("rot%d: start" % level)
+    if level >= len(levels):
+        log("rot%d: exceeds total of %d level" % (level, len(levels)))
+        return
+    dirs = get_directory_list(level)
+    if not len(dirs):
+        log("rot%d: end" % level)
+        return
+    if len(dirs) >= level_count:
+        if level + 1 >= len(levels) or not time_has_passed(level+1):
+            remove_oldest_directory(level)
+        else:
+            rotate_levels(level+1)
+            rename_oldest_directory(level)
+    shift_directories(level)
+    log("rot%d: end" % level)
+
+def get_target():
+    (level_name, level_count, level_format) = levels[0]
+    target = level_name + '.0'
+    working = target + '.working'
+    if os.path.isdir(target):
+        log("Target directory exists, rotating: %s" % target)
+    rotate_levels(0)
+    if os.path.isdir(working):
+        log("Use existing working directory: %s" % working)
+    else:
+        mkdir(working)
+        log("Use new working directory: %s" % working)
+    add_timestamp(0, working)
+    return [target, working]
 
 def store_value(option, opt_str, value, parser):
     level = parser.rargs[0]
     newval = parser.rargs[1]
     idx = None
-    for i in range(0,len(levels)):
-        if re.match(levels[i][0], level):
+    for i in range(0, len(levels)):
+        if levels[i][0] == level:
             idx = i
     if idx == None:
         print "%s is not a valid level" % level
@@ -32,11 +239,49 @@ def store_value(option, opt_str, value, parser):
     else:
         levels[idx] = [level, newval]
 
+def drain(p):
+    done = False
+
+    try:
+        while not done:
+            try:
+                [rlist, wlist, xlist] = select.select([p.stdout, p.stderr],
+                                                      [],
+                                                      [p.stdout, p.stderr],
+                                                      1000)
+            except select.error, e:
+                print "Exception: ", e
+                break
+
+            for i in rlist:
+                line = i.readline()
+                if len(line) and line[len(line) - 1] == '\r':
+                    print 'xxx', line.strip(),
+                elif len(line):
+                        print line.strip()
+                else:
+                    done = True
+    except KeyboardInterrupt:
+        pass
+    p.wait()
+    try:
+        result = rsyncresults[p.returncode]
+    except:
+        result = "Unknown"
+    print "Return code = %d: %s" % (p.returncode, result)
+
+
 if __name__ == "__main__":
     parser = OptionParser()
     parser.add_option("-v", "--verbose", dest="verbose",
                       action="store_true", default=False,
                       help="Verbose")
+    parser.add_option("-t", "--trace", dest="trace",
+                      action="store_true", default=False,
+                      help="Verbose")
+    parser.add_option("-n", "--trial-run", dest="nothing",
+                      action="store_true", default=False,
+                      help="Do nothing (trial run)")
     parser.add_option("-f", "--force", dest="force",
                       action="store_true", default=False,
                       help="Force, avoiding consistency checks")
@@ -47,9 +292,27 @@ if __name__ == "__main__":
                       callback=store_value, dest="level")
     parser.add_option("-d", "--dir", dest="dir",
                       help="Destination directory")
+    parser.add_option("--second-timestamps", action="callback",
+                      callback=second_timestamps)
+    parser.add_option("--list", dest="list",
+                      action="store_true", default=False)
     (options, args) = parser.parse_args()
 
-    parser.print_help()
+    if options.nothing:
+        do_nothing = True
+    if options.verbose:
+        do_verbose = True
+    if options.trace:
+        do_trace = True
+
+    if options.list:
+        if len(args) != 1:
+            print "Nothing to list"
+            parser.print_help()
+            sys.exit(0)
+        p = Popen(["rsync", args[0]], stdout=PIPE, stderr=PIPE, close_fds=True)
+        drain(p)
+        sys.exit(0)
 
     # cd to working directory; create if non-existent
     if options.dir:
@@ -57,14 +320,14 @@ if __name__ == "__main__":
             os.chdir(options.dir)
         except:
             try:
-                os.makedirs(options.dir)
-            except:
-                print "Cannot create path: %s" % options.dir
+                os.makedirs(options.dir, default_mode)
+            except os.error, e:
+                print "Cannot create path to %s:" % options.dir, e
                 sys.exit(0)
             try:
                 os.chdir(options.dir)
-            except:
-                print "Cannot chdir to %s" % options.dir
+            except os.error, e:
+                print "Cannot chdir to %s:" % options.dir, e
                 sys.exit(0)
 
     # check working directory for stuff
@@ -83,20 +346,61 @@ if __name__ == "__main__":
             else:
                 unexpected += 1
         if unexpected > expected * 3:
-            print "%d unexpected; %d expected" % (unexpected, expected)
-            print "Use -f to force use of this directory"
-            sys.exit(0)
-
-    # Rotate
-    for l in levels:
-        print l
-        count = count_level(l[0]
-
-    sys.exit(0)
+            print "Analysis of %s:" % os.getcwd()
+            print "  %d unexpected and %d expected files found" % (unexpected,
+                                                                   expected)
+            print "  This directory is probably not a snapr target"
+            print "  Use -f to force use of this directory"
+            sys.exit(1)
 
     if not len(args):
         parser.print_help()
         sys.exit(0)
 
+    # Rotate
+    [target, working] = get_target()
+    print target, working, args[0]
+    if not do_nothing:
+        try:
+            os.chdir(working)
+        except os.error, e:
+            print "Cannot chdir to %s:" % working, e
+            sys.exit(0)
+        p = Popen(["rsync",
+                   "-rltDvv", "-ogpn",
+                   "--numeric-ids",
+                   "--itemize-changes",
+                   "--out-format", "%o %B %8U %8G %10l %M %n",
+                   "--progress",
+                   args[0], '.'],
+                  stdout=PIPE, stderr=PIPE,
+                  close_fds=True, universal_newlines=True);
+        drain(p)
+        p = Popen(["rsync",
+                   "-rltDvv", "-ogpn",
+                   "--link-dest", "../hourly.1",
+                   "--numeric-ids",
+                   "--itemize-changes",
+                   "--out-format", "%o %B %8U %8G %10l %M %n",
+                   "--progress",
+                   args[0], '.'],
+                  stdout=PIPE, stderr=PIPE,
+                  close_fds=True, universal_newlines=True);
+        drain(p)
+        p = Popen(["rsync",
+                   "-rltDvv", "-ogp",
+                   "--link-dest", "../hourly.1",
+                   "--stats",
+                   "--itemize-changes",
+                   "--out-format", "%o %B %U %G %n (%b) %m %M %l",
+                   "--progress",
+                   args[0], '.'],
+                  stdout=PIPE, stderr=PIPE,
+                  close_fds=True, universal_newlines=True);
+        drain(p)
+        if p.returncode:
+            sys.exit(0)
+        os.chdir("..")
 
+    rename(working, target)
     sys.exit(0)
