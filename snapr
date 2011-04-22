@@ -270,12 +270,14 @@ def drain(p, outputfile = None, match = None):
                     trace(line.strip())
                 elif len(line):
                     l = line.strip()
-                    log(l)
-                    if output:
-                        if not match or re.match(match, l):
-                            if match:
-                                l = re.sub(match, '', l).strip()
-                            print >>output, l
+                    if output and match and re.match(match, l):
+                        l = re.sub(match, '', l).strip()
+                        print >>output, l
+                    else:
+                        if re.match("(total|sent|LS)", l):
+                            log(l)
+                        else:
+                            trace(l)
                 else:
                     done = True
     except KeyboardInterrupt:
@@ -285,7 +287,7 @@ def drain(p, outputfile = None, match = None):
         result = rsyncresults[p.returncode]
     except:
         result = "Unknown"
-    trace("Return code = %d: %s" % (p.returncode, result))
+    log("Return code = %d: %s" % (p.returncode, result))
 
     if outputfile:
         output.close()
@@ -455,11 +457,11 @@ if __name__ == "__main__":
     drain(p, ".snapr.ls", "LS")
     if not do_nothing:
         p = Popen(list(flatten(["rsync",
-                                "-rltDvv",
+                                "-rltDvv", "--delete", "--fuzzy",
                                 space_efficient,
                                 "--link-dest", "../hourly.1",
                                 "--itemize-changes",
-                                "--out-format", "%o %B %U %G %l %M %n",
+                                "--out-format", "LS %B %8U %8G %10l %M %n",
                                 args[0], '.'])),
                   stdout=PIPE, stderr=PIPE,
                   close_fds=True, universal_newlines=True);
