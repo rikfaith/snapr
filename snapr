@@ -241,8 +241,17 @@ def store_value(option, opt_str, value, parser):
     else:
         levels[idx] = [level, newval]
 
-def drain(p):
+def drain(p, outputfile = None, match = None):
     done = False
+
+    output = None
+    if outputfile:
+        try:
+            output = open(outputfile, 'a')
+        except IOError, e:
+            error("Could not open %s: %s" % (outputfile, e))
+        except:
+            error("Could not open %s: %s" % (outputfile, sys.exc_info()[0]))
 
     try:
         while not done:
@@ -258,9 +267,15 @@ def drain(p):
             for i in rlist:
                 line = i.readline()
                 if len(line) and line[len(line) - 1] == '\r':
-                    print 'xxx', line.strip(),
+                    trace(line.strip())
                 elif len(line):
-                        print line.strip()
+                    l = line.strip()
+                    log(l)
+                    if output:
+                        if not match or re.match(match, l):
+                            if match:
+                                l = re.sub(match, '', l).strip()
+                            print >>output, l
                 else:
                     done = True
     except KeyboardInterrupt:
@@ -271,6 +286,49 @@ def drain(p):
     except:
         result = "Unknown"
     trace("Return code = %d: %s" % (p.returncode, result))
+
+    if outputfile:
+        output.close()
+
+
+def flatten(nested):
+    try:
+        # Use idiom to detect a string and raise TypeError if found
+        try:
+            nested + ''
+        except TypeError:
+            pass
+        else:
+            raise TypeError
+
+        for l in nested:
+            for e in flatten(l):
+                yield e
+    except TypeError:
+        yield nested
+
+
+def intperm(perm):
+    mode = 0
+
+    if perm[0] == 'r': mode |= 00400
+    if perm[1] == 'w': mode |= 00200
+    if perm[2] == 'x': mode |= 00100
+    if perm[2] == 's': mode |= 04100
+    if perm[2] == 'S': mode |= 01000
+
+    if perm[3] == 'r': mode |= 00040
+    if perm[4] == 'w': mode |= 00020
+    if perm[5] == 'x': mode |= 00010
+    if perm[5] == 's': mode |= 02010
+    if perm[5] == 'S': mode |= 02000
+
+    if perm[6] == 'r': mode |= 00004
+    if perm[7] == 'w': mode |= 00002
+    if perm[8] == 'x': mode |= 00001
+    if perm[8] == 't': mode |= 01001
+    if perm[8] == 'T': mode |= 01000
+    return mode
 
 
 if __name__ == "__main__":
@@ -297,6 +355,8 @@ if __name__ == "__main__":
     parser.add_option("--second-timestamps", action="callback",
                       callback=second_timestamps)
     parser.add_option("--list", dest="list",
+                      action="store_true", default=False)
+    parser.add_option("-s", "--space-efficient", dest="space_efficient",
                       action="store_true", default=False)
     (options, args) = parser.parse_args()
 
@@ -373,35 +433,57 @@ if __name__ == "__main__":
     trace("target=%s working=%s args[0]=%s" % (target, working, args[0]))
     if args[0][0] == '.':
         error("Backup source be an absolute path (source=%s)" % args[0])
+
+    if options.space_efficient:
+        space_efficient = [ "--no-o", "--no-g", "--no-p", "--chmod=ug=rwX" ]
+    else:
+        space_efficient = [ "-ogp" ]
+
+    try:
+        os.chdir(working)
+    except os.error, e:
+        error("Cannot chdir to %s: %s" % (working, e))
+    p = Popen(list(flatten(["rsync",
+                            "-rltDvv", "-n", "-ogp",
+                            "--link-dest", "../hourly.1",
+                            "--numeric-ids",
+                            "--itemize-changes",
+                            "--out-format", "LS %B %8U %8G %10l %M %n",
+                            args[0], '.'])),
+              stdout=PIPE, stderr=PIPE,
+              close_fds=True, universal_newlines=True);
+    drain(p, ".snapr.ls", "LS")
     if not do_nothing:
-        try:
-            os.chdir(working)
-        except os.error, e:
-            error("Cannot chdir to %s: %s" % (working, e))
-        p = Popen(["rsync",
-                   "-rltDvv", "-ogpn",
-                   "--link-dest", "../hourly.1",
-                   "--numeric-ids",
-                   "--itemize-changes",
-                   "--out-format", "NOOP %o %B %8U %8G %10l %M %n",
-                   "--progress",
-                   args[0], '.'],
-                  stdout=PIPE, stderr=PIPE,
-                  close_fds=True, universal_newlines=True);
-        drain(p)
-        p = Popen(["rsync",
-                   "-rltDvv", "-ogp",
-                   "--link-dest", "../hourly.1",
-                   "--itemize-changes",
-                   "--out-format", "RSYNC %o %B %U %G %n (%b) %m %M %l",
-                   "--progress",
-                   args[0], '.'],
+        p = Popen(list(flatten(["rsync",
+                                "-rltDvv",
+                                space_efficient,
+                                "--link-dest", "../hourly.1",
+                                "--itemize-changes",
+                                "--out-format", "%o %B %U %G %l %M %n",
+                                args[0], '.'])),
                   stdout=PIPE, stderr=PIPE,
                   close_fds=True, universal_newlines=True);
         drain(p)
         if p.returncode:
             sys.exit(0)
-        os.chdir("..")
+        if options.space_efficient:
+            with open(".snapr.ls") as f:
+                for line in f:
+                    (perms, uid, gid, size, date, name) = \
+                            re.split('\s+', line.strip(), maxsplit=5)
+                    trace("%s %s %s %s" % (perms, uid, gid, name))
+                    try:
+                        os.chown(name, int(uid), int(gid))
+                    except IOError, e:
+                        log("Could not change owner to %d,%d for %s: %s"
+                            % (int(uid), int(gid), name, e))
+                    try:
+                        os.chmod(name, intperm(perms))
+                    except:
+                        log("Could not mode to %o,%s for %s: %s"
+                            % (intperm(perms), perms, name, e))
+
+    os.chdir("..")
 
     rename(working, target)
     sys.exit(0)
