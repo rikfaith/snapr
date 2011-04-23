@@ -63,7 +63,9 @@ def trace(text):
     logger.debug(text)
 
 def error(text):
-    logger.error(text)
+    logger.error(text +
+                 "\n   cwd = %s" % os.getcwd() +
+                 "\n   exiting")
     if options.verbose or options.trace:
         traceback.print_exc(file=sys.stderr)
     sys.exit(1)
@@ -475,12 +477,12 @@ if __name__ == "__main__":
                             re.split('\s+', line.strip(), maxsplit=5)
                     trace("%s %s %s %s" % (perms, uid, gid, name))
                     try:
-                        os.chown(name, int(uid), int(gid))
+                        os.lchown(name, int(uid), int(gid))
                     except IOError, e:
                         log("Could not change owner to %d,%d for %s: %s"
                             % (int(uid), int(gid), name, e))
                     try:
-                        os.chmod(name, intperm(perms))
+                        os.lchmod(name, intperm(perms))
                     except:
                         log("Could not mode to %o,%s for %s: %s"
                             % (intperm(perms), perms, name, e))
