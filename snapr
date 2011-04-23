@@ -274,7 +274,7 @@ def drain(p, outputfile = None, match = None):
                         l = re.sub(match, '', l).strip()
                         print >>output, l
                     else:
-                        if re.match("(total|sent|LS)", l):
+                        if re.match("(total|sent|recv|send|del.)", l):
                             log(l)
                         else:
                             trace(l)
@@ -461,7 +461,7 @@ if __name__ == "__main__":
                                 space_efficient,
                                 "--link-dest", "../hourly.1",
                                 "--itemize-changes",
-                                "--out-format", "LS %B %8U %8G %10l %M %n",
+                                "--out-format", "%o %B %U %G %l %M %n",
                                 args[0], '.'])),
                   stdout=PIPE, stderr=PIPE,
                   close_fds=True, universal_newlines=True);
