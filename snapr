@@ -257,9 +257,9 @@ def progress(is_final, starttime, totalfiles, isuptodate,
         label = "Final"
     else:
         label = "Progress"
-    log("%s: %fs %dfiles %duptodate %drecv %dsend %ddel",
-        label, time.time() - starttime,
-        totalfiles, isuptodate, recvfiles, sendfiles, delfiles)
+    log("%s: %fs %dfiles %duptodate %drecv %dsend %ddel" %
+        (label, time.time() - starttime,
+         totalfiles, isuptodate, recvfiles, sendfiles, delfiles))
 
 def drain(p, outputfile = None, match = None):
     done = False
