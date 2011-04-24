@@ -522,6 +522,9 @@ if __name__ == "__main__":
                     for line in f:
                         (perms, uid, gid, size, date, name) = \
                                 re.split('\s+', line.strip(), maxsplit=5)
+                        name = re.sub(r'\\#([0-7][0-7][0-7])',
+                                      r'\\\1',
+                                      name).decode('string-escape')
                         trace("%s %s %s %s" % (perms, uid, gid, name))
                         try:
                             os.lchown(name, int(uid), int(gid))
