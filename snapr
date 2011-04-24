@@ -299,6 +299,13 @@ def get_target():
     add_timestamp(0, working)
     return [target, working]
 
+def get_linkdest():
+    for i in range(0, len(levels)):
+        dirs = get_directory_list(i)
+        if dirs != []:
+            return dirs[0]
+    return None
+
 def store_value(option, opt_str, value, parser):
     level = parser.rargs[0]
     newval = parser.rargs[1]
@@ -556,6 +563,7 @@ if __name__ == "__main__":
 
     # Rotate
     [target, working] = get_target()
+    linkdest = get_linkdest()
     trace("target=%s working=%s args[0]=%s" % (target, working, args[0]))
     if args[0][0] == '.':
         error("Backup source must be an absolute path (source=%s)" % args[0])
@@ -565,13 +573,18 @@ if __name__ == "__main__":
     else:
         space_efficient = [ "-ogp" ]
 
+    if linkdest:
+        linkdest_options = [ "--link-dest", os.path.join("..", linkdest) ]
+    else:
+        linkdest_options = []
+
     try:
         os.chdir(working)
     except os.error, e:
         error("Cannot chdir to %s: %s" % (working, e))
     p = Popen(list(flatten(["rsync",
                             "-rltDvv", "-n", "-ogp",
-                            "--link-dest", "../hourly.1",
+                            linkdest_options,
                             "--numeric-ids",
                             "--itemize-changes",
                             "--out-format", "LS %B %8U %8G %10l %M %n",
@@ -583,7 +596,7 @@ if __name__ == "__main__":
         p = Popen(list(flatten(["rsync",
                                 "-rltDvv", "--delete", "--fuzzy",
                                 space_efficient,
-                                "--link-dest", "../hourly.1",
+                                linkdest_options,
                                 "--itemize-changes",
                                 "--out-format", "%o %B %U %G %l %M %n",
                                 args[0], '.'])),
