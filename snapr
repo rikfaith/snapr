@@ -302,7 +302,7 @@ def drain(p, outputfile = None, match = None):
                     if re.search("is uptodate", l):
                         isuptodate += 1
                     if time.time() > nexttime:
-                        progress(false, starttime, totalfiles, isuptodate,
+                        progress(False, starttime, totalfiles, isuptodate,
                                  recvfiles, sendfiles, delfiles)
                         nexttime = time.time() + 1
                     if output and match and re.match(match, l):
@@ -332,7 +332,7 @@ def drain(p, outputfile = None, match = None):
     except:
         result = "Unknown"
     log("Return code = %d: %s" % (p.returncode, result))
-    progress(true, starttime, totalfiles, isuptodate,
+    progress(True, starttime, totalfiles, isuptodate,
              recvfiles, sendfiles, delfiles)
 
     if outputfile:
