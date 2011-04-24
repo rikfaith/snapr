@@ -62,7 +62,7 @@ def elapsedtime():
     hours = elapsed / 3600
     minutes = (elapsed - (hours * 3600)) / 60
     seconds = elapsed - (hours * 3600) - (minutes * 60)
-    return "%02d:%02d:%02d " % (hours, minutes, seconds)
+    return "%02.2f:%02.2f:%02.2f " % (hours, minutes, seconds)
 
 def log(text):
     logger.info(elapsedtime() + text)
@@ -377,7 +377,7 @@ def intperm(perm):
 
 
 if __name__ == "__main__":
-    starttime = time.time()
+    global starttime = time.time()
     parser = OptionParser()
     parser.add_option("-v", "--verbose", dest="verbose",
                       action="store_true", default=False,
@@ -528,23 +528,19 @@ if __name__ == "__main__":
                         try:
                             os.lchown(name, int(uid), int(gid))
                             chown_count += 1
-                        except error.ENOENT:
-                            log("lchown: No file %s" % name)
-                            pass
                         except IOError, e:
                             log("Could not change owner to %d,%d for %s: %s"
                                 % (int(uid), int(gid), name, e))
+                            pass
                         if not os.path.islink(name):
                             try:
                                 # Could use os.lchmod here when available
                                 os.chmod(name, intperm(perms))
                                 chmod_count += 1
-                            except error.ENOENT:
-                                log("chmod: No file %s" % name)
-                                pass
                             except IOError, e:
                                 log("Could not change mode to %o,%s for %s: %s"
                                     % (intperm(perms), perms, name, e))
+                                pass
             except IOError, e:
                 error("Could not open .snapr.ls: %s" % e)
             except:
