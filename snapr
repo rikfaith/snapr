@@ -284,23 +284,23 @@ def rotate_levels(level):
     shift_directories(level)
     log("rot%d: end" % level)
 
-def get_target():
-    (level_name, level_count, level_format) = levels[0]
+def get_target(level):
+    (level_name, level_count, level_format) = levels[level]
     target = level_name + '.0'
     working = target + '.working'
     if os.path.isdir(target):
         log("Target directory exists, rotating: %s" % target)
-    rotate_levels(0)
+    rotate_levels(level)
     if os.path.isdir(working):
         log("Use existing working directory: %s" % working)
     else:
         mkdir(working)
         log("Use new working directory: %s" % working)
-    add_timestamp(0, working)
+    add_timestamp(level, working)
     return [target, working]
 
-def get_linkdest():
-    for i in range(0, len(levels)):
+def get_linkdest(level):
+    for i in range(level, len(levels)):
         dirs = get_directory_list(i)
         if dirs != []:
             return dirs[0]
@@ -477,11 +477,10 @@ if __name__ == "__main__":
     parser.add_option("-f", "--force", dest="force",
                       action="store_true", default=False,
                       help="Force, avoiding consistency checks")
-    parser.add_option("-r", "--rotate", dest="rotate",
-                      action="store_true", default=False,
-                      help="Rotate standard directories")
     parser.add_option("-l", "--level", nargs=2, action="callback",
                       callback=store_value, dest="level")
+    parser.add_option("-i", "--initial", dest="initial",
+                      help="Initial level")
     parser.add_option("-d", "--dir", dest="dir",
                       help="Destination directory")
     parser.add_option("--second-timestamps", action="callback",
@@ -562,8 +561,19 @@ if __name__ == "__main__":
         sys.exit(0)
 
     # Rotate
-    [target, working] = get_target()
-    linkdest = get_linkdest()
+    if options.initial:
+        trace("initial = %s" % options.initial)
+        level = -1
+        for i in range(0, len(levels)):
+            if options.initial == levels[i][0]:
+                level = i
+                break
+        if level == -1:
+            error("Unknown level: %s" % options.initial)
+    else:
+        level = 0
+    [target, working] = get_target(level)
+    linkdest = get_linkdest(level)
     trace("target=%s working=%s args[0]=%s" % (target, working, args[0]))
     if args[0][0] == '.':
         error("Backup source must be an absolute path (source=%s)" % args[0])
