@@ -253,9 +253,12 @@ def store_value(option, opt_str, value, parser):
 
 def progress(is_final, starttime, totalfiles, isuptodate,
              recvfiles, sendfiles, delfiles):
+    if is_final:
+        label = "Final"
+    else:
+        label = "Progress"
     log("%s: %fs %dfiles %duptodate %drecv %dsend %ddel",
-        is_final ? "Final" : "Progress",
-        time.time() - starttime,
+        label, time.time() - starttime,
         totalfiles, isuptodate, recvfiles, sendfiles, delfiles)
 
 def drain(p, outputfile = None, match = None):
