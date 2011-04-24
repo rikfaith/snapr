@@ -574,6 +574,7 @@ if __name__ == "__main__":
         space_efficient = [ "-ogp" ]
 
     if linkdest:
+        log("Reference directory: %s" % linkdest)
         linkdest_options = [ "--link-dest", os.path.join("..", linkdest) ]
     else:
         linkdest_options = []
