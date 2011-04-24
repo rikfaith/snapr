@@ -8,6 +8,8 @@ import time
 import select
 import logging
 import traceback
+import signal
+import atexit
 from subprocess import *
 from optparse import OptionParser
 
@@ -25,10 +27,7 @@ do_nothing = False
 default_mode = 0755
 default_max_dir = 99
 
-logformat = "%(levelname)-1.1s %(asctime)-15s %(message)s"
-dateformat = "%Y%m%d.%H%M%S"
-logging.basicConfig(format=logformat, datefmt=dateformat, level=logging.ERROR)
-logger = logging.getLogger('snapr')
+lockfile = None
 
 rsyncresults = { 0: "Success",
                  1: "Syntax error",
@@ -50,6 +49,71 @@ rsyncresults = { 0: "Success",
                  25: "Limited deletions",
                  30: "Timeout in data send/receive",
                  35: "Timeout waiting for daemon connection" }
+
+def lockfile_read():
+    trace("lockfile_read: %s" % lockfile)
+    if not lockfile:
+        return ('unknown', 0)
+    try:
+        f = open(lockfile, 'r')
+        (locknode, lockpid) = f.readline().strip().split()[0:2]
+        f.close()
+        trace("lockfile=%s node=%s pid=%s" % (lockfile, locknode, lockpid))
+        return (locknode, lockpid)
+    except:
+        return ('unknown', 0)
+    
+
+def lockfile_unlock():
+    global lockfile
+    [sysname, nodename, release, version, machine] = os.uname()
+    trace("lockfile_unlock: %s %d" % (nodename, os.getpid()))
+    if lockfile:
+        try:
+            (locknode, lockpid) = lockfile_read()
+            if locknode == nodename and int(lockpid) == os.getpid():
+                log("Removing %s" % lockfile)
+                try:
+                    os.unlink(lockfile)
+                except OSError, e:
+                    log("Cannot remove %s: %s" % (lockfile, e))
+            else:
+                trace("Lockfile not ours: %s" % lockfile)
+            f.close()
+        except:
+            pass
+
+def lockfile_lock():
+    global lockfile
+    [sysname, nodename, release, version, machine] = os.uname()
+    trace("lockfile_lock: %s %d" % (nodename, os.getpid()))
+    atexit.register(lockfile_unlock)
+    lockfile = os.path.join(os.getcwd(), '.snapr.lock')
+    while True:
+        try:
+            fd = os.open(lockfile, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
+            os.write(fd, "%s %d" % (nodename, os.getpid()))
+            os.close(fd)
+            log("Locked: %s %d via %s" % (nodename, os.getpid(), lockfile))
+            return
+        except:
+            (locknode, lockpid) = lockfile_read()
+            if (locknode == nodename and
+                os.path.isdir(os.path.join('/proc', str(os.getpid()))) and
+                not os.path.isdir(os.path.join('/proc', lockpid))):
+                log("Removing stale lockfile %s for %s %s" %
+                    (lockfile, locknode, lockpid))
+                try:
+                    os.unlink(lockfile)
+                except OSError, e:
+                    error("Cannot remove %s: %s" % (lockfile, e))
+            else:
+                error("Cannot get lock via %s: node=%s pid=%s" %
+                      (lockfile, locknode, lockpid))
+
+def signal_handler(signal, frame):
+    error("Signal %d" % signal)
+    sys.exit(0)
 
 def second_timestamps(option, opt_str, value, parser):
     log("Setting second timestamps")
@@ -379,6 +443,14 @@ def intperm(perm):
 if __name__ == "__main__":
     global starttime
     starttime = time.time()
+
+    signal.signal(signal.SIGINT, signal_handler)
+
+    logformat = "%(levelname)-1.1s %(asctime)-15s %(message)s"
+    dateformat = "%Y%m%d.%H%M%S"
+    logging.basicConfig(format=logformat, datefmt=dateformat, level=logging.ERROR)
+    logger = logging.getLogger('snapr')
+
     parser = OptionParser()
     parser.add_option("-v", "--verbose", dest="verbose",
                       action="store_true", default=False,
@@ -447,6 +519,7 @@ if __name__ == "__main__":
     logger.addHandler(filelog)
 
     log("Current working direction is %s" % os.getcwd())
+    lockfile_lock()
 
     # check working directory for stuff
     if not options.force:
@@ -479,7 +552,7 @@ if __name__ == "__main__":
     [target, working] = get_target()
     trace("target=%s working=%s args[0]=%s" % (target, working, args[0]))
     if args[0][0] == '.':
-        error("Backup source be an absolute path (source=%s)" % args[0])
+        error("Backup source must be an absolute path (source=%s)" % args[0])
 
     if options.space_efficient:
         space_efficient = [ "--no-o", "--no-g", "--no-p", "--chmod=ug=rwX" ]
