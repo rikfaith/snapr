@@ -516,7 +516,7 @@ if __name__ == "__main__":
     filelog = logging.FileHandler(os.path.join(os.getcwd(), logfilebase))
     filelog.setLevel(logging.DEBUG)
     filelog.setFormatter(logging.Formatter(logformat, dateformat))
-    logger.addHandler(filelog)
+    logger.getLogger('').addHandler(filelog)
 
     log("Current working direction is %s" % os.getcwd())
     lockfile_lock()
