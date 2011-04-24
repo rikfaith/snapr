@@ -530,16 +530,16 @@ if __name__ == "__main__":
                             os.lchown(name, int(uid), int(gid))
                             chown_count += 1
                         except OSError, e:
-                            log("Could not change owner to %d,%d for %s: %s"
-                                % (int(uid), int(gid), name, e))
+                            log("lchown(%d,%d): %s"
+                                % (int(uid), int(gid), e))
                         if not os.path.islink(name):
                             try:
                                 # Could use os.lchmod here when available
                                 os.chmod(name, intperm(perms))
                                 chmod_count += 1
                             except OSError, e:
-                                log("Could not change mode to %o,%s for %s: %s"
-                                    % (intperm(perms), perms, name, e))
+                                log("chmod(%o,%s): %s"
+                                    % (intperm(perms), perms, e))
             except IOError, e:
                 error("Could not open .snapr.ls: %s" % e)
             except:
