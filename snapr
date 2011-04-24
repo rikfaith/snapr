@@ -515,6 +515,8 @@ if __name__ == "__main__":
         if p.returncode:
             sys.exit(0)
         if options.space_efficient:
+            chown_count = 0
+            chmod_count = 0
             try:
                 with open(".snapr.ls") as f:
                     for line in f:
@@ -526,6 +528,7 @@ if __name__ == "__main__":
                         trace("%s %s %s %s" % (perms, uid, gid, name))
                         try:
                             os.lchown(name, int(uid), int(gid))
+                            chown_count += 1
                         except IOError, e:
                             log("Could not change owner to %d,%d for %s: %s"
                                 % (int(uid), int(gid), name, e))
@@ -533,6 +536,7 @@ if __name__ == "__main__":
                             try:
                                 # Could use os.lchmod here when available
                                 os.chmod(name, intperm(perms))
+                                chmod_count += 1
                             except IOError, e:
                                 log("Could not change mode to %o,%s for %s: %s"
                                     % (intperm(perms), perms, name, e))
@@ -540,6 +544,7 @@ if __name__ == "__main__":
                 error("Could not open .snapr.ls: %s" % e)
             except:
                 error("Could not open .snapr.ls: %s" % sys.exc_info()[0])
+            log("Final: %dchowns %dchmods" % (chown_count, chmod_count))
 
     os.chdir("..")
     rename(working, target)
