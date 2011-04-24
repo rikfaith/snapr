@@ -306,7 +306,7 @@ def drain(p, outputfile = None, match = None):
                                  recvfiles, sendfiles, delfiles)
                         nexttime = time.time() + 1
                     if output and match and re.match(match, l):
-                        l = re.sub(match, '', l).strip()
+                        l = re.sub(match, '', l, count=1).strip()
                         print >>output, l
                     else:
                         if re.match("send", l):
