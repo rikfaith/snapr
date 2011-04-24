@@ -377,7 +377,8 @@ def intperm(perm):
 
 
 if __name__ == "__main__":
-    global starttime = time.time()
+    global starttime
+    starttime = time.time()
     parser = OptionParser()
     parser.add_option("-v", "--verbose", dest="verbose",
                       action="store_true", default=False,
