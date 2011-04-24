@@ -245,6 +245,8 @@ def store_value(option, opt_str, value, parser):
 
 def drain(p, outputfile = None, match = None):
     done = False
+    totalfiles = 0
+    isuptodate = 0
 
     output = None
     if outputfile:
@@ -254,6 +256,7 @@ def drain(p, outputfile = None, match = None):
             error("Could not open %s: %s" % (outputfile, e))
         except:
             error("Could not open %s: %s" % (outputfile, sys.exc_info()[0]))
+    log("Output file open: %s in %s" % (outputfile, os.getcwd()))
 
     try:
         while not done:
@@ -272,6 +275,12 @@ def drain(p, outputfile = None, match = None):
                     trace(line.strip())
                 elif len(line):
                     l = line.strip()
+                    totalfiles += 1
+                    if re.search("is uptodate", l):
+                        isuptodate += 1
+                    if not (totalfiles % 1000):
+                        log("Progress: totalfiles=%d isuptodate=%d" %
+                            (totalfiles, isuptodate))
                     if output and match and re.match(match, l):
                         l = re.sub(match, '', l).strip()
                         print >>output, l
@@ -290,6 +299,7 @@ def drain(p, outputfile = None, match = None):
     except:
         result = "Unknown"
     log("Return code = %d: %s" % (p.returncode, result))
+    log("Final: totalfiles=%d isuptodate=%d" % (totalfiles, isuptodate))
 
     if outputfile:
         output.close()
@@ -456,7 +466,7 @@ if __name__ == "__main__":
                             args[0], '.'])),
               stdout=PIPE, stderr=PIPE,
               close_fds=True, universal_newlines=True);
-    drain(p, ".snapr.ls", "LS")
+    drain(p, "../.snapr.ls", "LS")
     if not do_nothing:
         p = Popen(list(flatten(["rsync",
                                 "-rltDvv", "--delete", "--fuzzy",
@@ -468,6 +478,7 @@ if __name__ == "__main__":
                   stdout=PIPE, stderr=PIPE,
                   close_fds=True, universal_newlines=True);
         drain(p)
+        rename("../.snapr.ls", ".snapr.ls")
         if p.returncode:
             sys.exit(0)
         if options.space_efficient:
@@ -489,8 +500,9 @@ if __name__ == "__main__":
                                 % (intperm(perms), perms, name, e))
             except IOError, e:
                 error("Could not open .snapr.ls: %s" % e)
+            except:
+                error("Could not open .snapr.ls: %s" % sys.exc_info()[0])
 
     os.chdir("..")
-
     rename(working, target)
     sys.exit(0)
