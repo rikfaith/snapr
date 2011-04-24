@@ -59,9 +59,9 @@ def second_timestamps(option, opt_str, value, parser):
 def elapsedtime():
     global starttime
     elapsed = time.time() - starttime
-    hours = elapsed / 3600
-    minutes = (elapsed - (hours * 3600)) / 60
-    seconds = elapsed - (hours * 3600) - (minutes * 60)
+    hours = int(elapsed / 3600)
+    minutes = int((elapsed - (hours * 3600)) / 60)
+    seconds = int(elapsed - (hours * 3600) - (minutes * 60))
     return "%f %02f:%02f:%02f " % (elapsed, hours, minutes, seconds)
 
 def log(text):
