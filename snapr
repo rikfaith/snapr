@@ -56,14 +56,21 @@ def second_timestamps(option, opt_str, value, parser):
     for i in range(0, len(levels)):
         levels[i][2] = '%Y.%m.%d.%H.%M.%S'
 
+def elapsedtime():
+    elapsed = time.time() - starttime
+    hours = elapsed / 3600
+    minutes = (elapsed - (hours * 3600)) / 60
+    seconds = elapsed - (hours * 3600) - (minutes * 60)
+    return "[%02:%02:%02] " % (hours, minutes, seconds)
+
 def log(text):
-    logger.info(text)
+    logger.info(elapsedtime() + text)
 
 def trace(text):
-    logger.debug(text)
+    logger.debug(elapsedtime() + text)
 
 def error(text):
-    logger.error(text +
+    logger.error(elapsedtime() + text +
                  "\n   cwd = %s" % os.getcwd() +
                  "\n   exiting")
     if options.verbose or options.trace:
@@ -247,7 +254,7 @@ def drain(p, outputfile = None, match = None):
     done = False
     totalfiles = 0
     isuptodate = 0
-    starttime = time.clock()
+    starttime = time.time()
     nexttime = starttime + 1
 
     output = None
@@ -280,10 +287,10 @@ def drain(p, outputfile = None, match = None):
                     totalfiles += 1
                     if re.search("is uptodate", l):
                         isuptodate += 1
-                    if time.clock() > nexttime:
+                    if time.time() > nexttime:
                         log("Progress: totalfiles=%d isuptodate=%d elapsed=%f" %
-                            (totalfiles, isuptodate, time.clock() - starttime))
-                        nexttime = starttime + 1
+                            (totalfiles, isuptodate, time.time() - starttime))
+                        nexttime = time.time() + 1
                     if output and match and re.match(match, l):
                         l = re.sub(match, '', l).strip()
                         print >>output, l
@@ -303,7 +310,7 @@ def drain(p, outputfile = None, match = None):
         result = "Unknown"
     log("Return code = %d: %s" % (p.returncode, result))
     log("Final: totalfiles=%d isuptodate=%d elapsed=%f" %
-        (totalfiles, isuptodate, time.clock() - starttime))
+        (totalfiles, isuptodate, time.time() - starttime))
 
     if outputfile:
         output.close()
@@ -350,6 +357,7 @@ def intperm(perm):
 
 
 if __name__ == "__main__":
+    starttime = time.time()
     parser = OptionParser()
     parser.add_option("-v", "--verbose", dest="verbose",
                       action="store_true", default=False,
