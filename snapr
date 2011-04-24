@@ -58,6 +58,7 @@ def second_timestamps(option, opt_str, value, parser):
         levels[i][2] = '%Y.%m.%d.%H.%M.%S'
 
 def elapsedtime():
+    global program_start_time
     elapsed = time.time() - program_start_time
     hours = elapsed / 3600
     minutes = (elapsed - (hours * 3600)) / 60
@@ -309,14 +310,11 @@ def drain(p, outputfile = None, match = None):
                         l = re.sub(match, '', l, count=1).strip()
                         print >>output, l
                     else:
-                        if re.match("send", l):
-                            trace(l)
+                        if re.match("send ", l):
                             sendfiles += 1
-                        if re.match("recv", l):
-                            trace(l)
+                        if re.match("recv ", l):
                             recvfiles += 1
-                        if re.match("del.", l):
-                            trace(l)
+                        if re.match("del\\. ", l):
                             delfiles += 1
                         if re.match("(total|sent)", l):
                             log(l)
