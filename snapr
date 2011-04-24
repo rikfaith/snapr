@@ -247,6 +247,8 @@ def drain(p, outputfile = None, match = None):
     done = False
     totalfiles = 0
     isuptodate = 0
+    starttime = time.clock()
+    nexttime = starttime + 1
 
     output = None
     if outputfile:
@@ -278,9 +280,10 @@ def drain(p, outputfile = None, match = None):
                     totalfiles += 1
                     if re.search("is uptodate", l):
                         isuptodate += 1
-                    if not (totalfiles % 1000):
-                        log("Progress: totalfiles=%d isuptodate=%d" %
-                            (totalfiles, isuptodate))
+                    if time.clock() > nexttime:
+                        log("Progress: totalfiles=%d isuptodate=%d elapsed=%f" %
+                            (totalfiles, isuptodate, time.clock() - starttime))
+                        nexttime = starttime + 1
                     if output and match and re.match(match, l):
                         l = re.sub(match, '', l).strip()
                         print >>output, l
@@ -299,7 +302,8 @@ def drain(p, outputfile = None, match = None):
     except:
         result = "Unknown"
     log("Return code = %d: %s" % (p.returncode, result))
-    log("Final: totalfiles=%d isuptodate=%d" % (totalfiles, isuptodate))
+    log("Final: totalfiles=%d isuptodate=%d elapsed=%f" %
+        (totalfiles, isuptodate, time.clock() - starttime))
 
     if outputfile:
         output.close()
@@ -495,7 +499,7 @@ if __name__ == "__main__":
                                 % (int(uid), int(gid), name, e))
                         try:
                             os.lchmod(name, intperm(perms))
-                        except:
+                        except IOError, e:
                             log("Could not change mode to %o,%s for %s: %s"
                                 % (intperm(perms), perms, name, e))
             except IOError, e:
