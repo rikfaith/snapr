@@ -529,6 +529,9 @@ if __name__ == "__main__":
                         try:
                             os.lchown(name, int(uid), int(gid))
                             chown_count += 1
+                        except error.ENOENT:
+                            log("lchown: No file %s" % name)
+                            pass
                         except IOError, e:
                             log("Could not change owner to %d,%d for %s: %s"
                                 % (int(uid), int(gid), name, e))
@@ -537,6 +540,9 @@ if __name__ == "__main__":
                                 # Could use os.lchmod here when available
                                 os.chmod(name, intperm(perms))
                                 chmod_count += 1
+                            except error.ENOENT:
+                                log("chmod: No file %s" % name)
+                                pass
                             except IOError, e:
                                 log("Could not change mode to %o,%s for %s: %s"
                                     % (intperm(perms), perms, name, e))
