@@ -61,7 +61,7 @@ def elapsedtime():
     hours = elapsed / 3600
     minutes = (elapsed - (hours * 3600)) / 60
     seconds = elapsed - (hours * 3600) - (minutes * 60)
-    return "[%02:%02:%02] " % (hours, minutes, seconds)
+    return "[%02d:%02d:%02d] " % (hours, minutes, seconds)
 
 def log(text):
     logger.info(elapsedtime() + text)
