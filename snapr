@@ -350,7 +350,7 @@ def drain(p, outputfile = None, match = None):
             error("Could not open %s: %s" % (outputfile, e))
         except:
             error("Could not open %s: %s" % (outputfile, sys.exc_info()[0]))
-    log("Output file open: %s in %s" % (outputfile, os.getcwd()))
+        log("Output file open: %s in %s" % (outputfile, os.getcwd()))
 
     try:
         while not done:
@@ -386,7 +386,7 @@ def drain(p, outputfile = None, match = None):
                             recvfiles += 1
                         if re.match("del\\. ", l):
                             delfiles += 1
-                        if re.match("(total|sent)", l):
+                        if re.match("(total|sent|rsync)", l):
                             log(l)
                         else:
                             trace(l)
