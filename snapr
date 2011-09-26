@@ -601,7 +601,7 @@ if __name__ == "__main__":
                             "--out-format", "LS %B %8U %8G %10l %M %n",
                             args[0], '.'])),
               stdout=PIPE, stderr=PIPE,
-              close_fds=True, universal_newlines=True);
+              close_fds=True, universal_newlines=True)
     drain(p, "../.snapr.ls", "LS")
     if not do_nothing:
         p = Popen(list(flatten(["rsync",
