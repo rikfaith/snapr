@@ -489,6 +489,10 @@ if __name__ == "__main__":
                       action="store_true", default=False)
     parser.add_option("-s", "--space-efficient", dest="space_efficient",
                       action="store_true", default=False)
+    parser.add_option("-I", "--include", dest="include",
+                      action="append", help="Include pattern")
+    parser.add_option("-E", "--exclude", dest="exclude",
+                      action="append", help="Exclude pattern")
     (options, args) = parser.parse_args()
 
     if options.nothing:
@@ -593,9 +597,22 @@ if __name__ == "__main__":
         os.chdir(working)
     except os.error, e:
         error("Cannot chdir to %s: %s" % (working, e))
+
+    extra_options = []
+    if options.include:
+        for i in options.include:
+            extra_options.append('--include')
+            extra_options.append(i)
+    if options.exclude:
+        for i in options.exclude:
+            extra_options.append('--exclude')
+            extra_options.append(i)
+    log("extra_options = %s" % extra_options)
+
     p = Popen(list(flatten(["rsync",
                             "-rltDvv", "-n", "-ogp",
                             linkdest_options,
+                            extra_options,
                             "--numeric-ids",
                             "--itemize-changes",
                             "--out-format", "LS %B %8U %8G %10l %M %n",
@@ -608,6 +625,7 @@ if __name__ == "__main__":
                                 "-rltDvv", "--delete", "--fuzzy",
                                 space_efficient,
                                 linkdest_options,
+                                extra_options,
                                 "--itemize-changes",
                                 "--out-format", "%o %B %U %G %l %M %n",
                                 args[0], '.'])),
