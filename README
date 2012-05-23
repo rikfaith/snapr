@@ -6,9 +6,22 @@ The main features are:
 2) permissions and owners can change without causing a
    new backup
 3) rsync's hardlink feature is used
+4) continuation of aborted backups
 
 Missing features are:
 1) snapr log-file rotation
 2) non-verbosity
 3) restoration of permissions and owners
 
+Command examples:
+
+  cd /destiation/dir || exit $?
+  snapr -s -i daily /media
+
+or synonymously
+
+  snapr -s -i daily -d /destination/dir /media
+
+rsync pull (no ssh allowed yet, only pure rsync):
+
+  snapr -s -i daily -d /destination/dir rsync://servrer/media

@@ -517,6 +517,10 @@ if __name__ == "__main__":
                       action="append", help="Include pattern")
     parser.add_option("-E", "--exclude", dest="exclude",
                       action="append", help="Exclude pattern")
+
+    parser.add_option("-e", "--exclude-from", dest="excludefrom",
+                      action="append", help="Exclude patterns from a file")
+
     (options, args) = parser.parse_args()
 
     if options.nothing:
@@ -535,6 +539,9 @@ if __name__ == "__main__":
             log("Nothing to list")
             parser.print_help()
             sys.exit(0)
+
+        # print "Rsync",", ".join(args[0])
+
         p = Popen(["rsync", args[0]], stdout=PIPE, stderr=PIPE, close_fds=True)
         drain(p)
         sys.exit(0)
@@ -631,16 +638,25 @@ if __name__ == "__main__":
         for i in options.exclude:
             extra_options.append('--exclude')
             extra_options.append(i)
+    if options.excludefrom:
+        for i in options.excludefrom:
+            extra_options.append('--exclude-from')
+            extra_options.append(i)
+
     log("extra_options = %s" % extra_options)
 
-    p = Popen(list(flatten(["rsync",
+    command = list(flatten(["rsync",
                             "-rltDvv", "-n", "-ogp",
                             linkdest_options,
                             extra_options,
                             "--numeric-ids",
                             "--itemize-changes",
                             "--out-format", "LS %B %8U %8G %10l %M %n",
-                            args[0], '.'])),
+                            args[0], '.']))
+
+    # print "command",", ".join(command)
+
+    p = Popen(command,
               stdout=PIPE, stderr=PIPE,
               close_fds=True, universal_newlines=True)
     drain(p, "../.snapr.ls", "LS")
