@@ -1,0 +1,14 @@
+snapr is yet another rsync-based python backup script
+
+The main features are:
+1) a series of daily.1, daily.3, etc. are auto-renumbered,
+   so it is safe deleting a repository in the middle
+2) permissions and owners can change without causing a
+   new backup
+3) rsync's hardlink feature is used
+
+Missing features are:
+1) snapr log-file rotation
+2) non-verbosity
+3) restoration of permissions and owners
+
