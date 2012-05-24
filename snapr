@@ -488,13 +488,17 @@ if __name__ == "__main__":
     consolelog.setFormatter(logging.Formatter(logformat, dateformat))
     logger.addHandler(consolelog)
 
-    parser = OptionParser()
+    parser = OptionParser(usage="Usage: %prog [options] <directory to back up>",
+                          description='''Back up the given directory into the
+current working directory or a directory specified with the -d/--dir opiton.''',
+                          epilog=" ")
+
     parser.add_option("-v", "--verbose", dest="verbose",
                       action="store_true", default=False,
-                      help="Verbose")
+                      help="Verbose (loglevel info)")
     parser.add_option("-t", "--trace", dest="trace",
                       action="store_true", default=False,
-                      help="Verbose")
+                      help="Verbose (loglevel debug)")
     parser.add_option("-n", "--trial-run", dest="nothing",
                       action="store_true", default=False,
                       help="Do nothing (trial run)")
@@ -502,26 +506,37 @@ if __name__ == "__main__":
                       action="store_true", default=False,
                       help="Force, avoiding consistency checks")
     parser.add_option("-l", "--level", nargs=2, action="callback",
-                      callback=store_value, dest="level")
+                      callback=store_value, dest="level",
+                      help="One of hourly, daily, weekly, monthly or yearly.")
     parser.add_option("-i", "--initial", dest="initial",
                       help="Initial level")
     parser.add_option("-d", "--dir", dest="dir",
-                      help="Destination directory")
+                      help="Destination directory (default is ./)")
+    parser.add_option("-x", "--one-file-system", dest="onefs",
+                      action="store_true", default=False,
+                      help="Don't cross filesystem boundaries")
     parser.add_option("--second-timestamps", action="callback",
                       callback=second_timestamps)
     parser.add_option("--list", dest="list",
                       action="store_true", default=False)
     parser.add_option("-s", "--space-efficient", dest="space_efficient",
-                      action="store_true", default=False)
+                      action="store_true", default=False,
+                      help="Hardlink to previous versions")
     parser.add_option("-I", "--include", dest="include",
                       action="append", help="Include pattern")
     parser.add_option("-E", "--exclude", dest="exclude",
                       action="append", help="Exclude pattern")
+    parser.add_option("--exclude-from", dest="excludefrom",
+                      action="append",
+                      help="Exclude patterns from the named file")
 
-    parser.add_option("-e", "--exclude-from", dest="excludefrom",
-                      action="append", help="Exclude patterns from a file")
-
-    (options, args) = parser.parse_args()
+    try:
+        (options, args) = parser.parse_args()
+    except:
+        print >> sys.stderr, "Option error"
+        print >> sys.stderr
+        parser.print_help(file=sys.stderr)
+        sys.exit(1)
 
     if options.nothing:
         do_nothing = True
@@ -531,16 +546,19 @@ if __name__ == "__main__":
         consolelog.setLevel(logging.DEBUG)
 
     if not len(args):
-        parser.print_help()
-        sys.exit(0)
+        print >> sys.stderr, "I'd like a directory to back up please"
+        print >> sys.stderr
+        parser.print_help(file=sys.stderr)
+        sys.exit(1)
 
     if options.list:
         if len(args) != 1:
-            log("Nothing to list")
-            parser.print_help()
-            sys.exit(0)
+            print >> sys.stderr, "Nothing to list"
+            print >> sys.stderr
+            parser.print_help(file=sys.stderr)
+            sys.exit(1)
 
-        # print "Rsync",", ".join(args[0])
+        log( "rsync command %s" % ", ".args[0] )
 
         p = Popen(["rsync", args[0]], stdout=PIPE, stderr=PIPE, close_fds=True)
         drain(p)
@@ -634,16 +652,21 @@ if __name__ == "__main__":
         for i in options.include:
             extra_options.append('--include')
             extra_options.append(i)
+
     if options.exclude:
         for i in options.exclude:
             extra_options.append('--exclude')
             extra_options.append(i)
+
     if options.excludefrom:
         for i in options.excludefrom:
             extra_options.append('--exclude-from')
             extra_options.append(i)
 
-    log("extra_options = %s" % extra_options)
+    if options.onefs:
+        extra_options.append('--one-file-system')
+
+    log( "extra_options = %s" % extra_options )
 
     command = list(flatten(["rsync",
                             "-rltDvv", "-n", "-ogp",
@@ -654,7 +677,7 @@ if __name__ == "__main__":
                             "--out-format", "LS %B %8U %8G %10l %M %n",
                             args[0], '.']))
 
-    # print "command",", ".join(command)
+    log( "rsync command %s" % ", ".join(command) )
 
     p = Popen(command,
               stdout=PIPE, stderr=PIPE,
