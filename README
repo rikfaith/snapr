@@ -15,7 +15,7 @@ Missing features are:
 
 Command examples:
 
-  cd /destiation/dir || exit $?
+  cd /destination/dir || exit $?
   snapr -s -i daily /media
 
 or synonymously
