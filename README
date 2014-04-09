@@ -24,4 +24,4 @@ or synonymously
 
 rsync pull (no ssh allowed yet, only pure rsync):
 
-  snapr -s -i daily -d /destination/dir rsync://servrer/media
+  snapr -s -i daily -d /destination/dir rsync://server/media
