@@ -48,7 +48,7 @@ levels = [ [ "hourly",   6, "%Y.%j.%H" ],
 prefixes = [l[0] for l in levels]
 
 do_nothing = False
-default_mode = 0755
+default_mode = 0o755
 default_max_dir = 99
 
 lockfile = None
@@ -99,7 +99,7 @@ def lockfile_unlock():
                 log("Removing %s" % lockfile)
                 try:
                     os.unlink(lockfile)
-                except OSError, e:
+                except OSError as e:
                     log("Cannot remove %s: %s" % (lockfile, e))
             else:
                 trace("Lockfile not ours: %s" % lockfile)
@@ -115,21 +115,21 @@ def lockfile_lock():
     lockfile = os.path.join(os.getcwd(), '.snapr.lock')
     while True:
         try:
-            fd = os.open(lockfile, os.O_WRONLY | os.O_CREAT | os.O_EXCL)
-            os.write(fd, "%s %d" % (nodename, os.getpid()))
+            fd = os.open(lockfile, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o700)
+            os.write(fd, bytes("%s %d" % (nodename, os.getpid()), "utf-8"))
             os.close(fd)
             log("Locked: %s %d via %s" % (nodename, os.getpid(), lockfile))
             return
         except:
             (locknode, lockpid) = lockfile_read()
-            if (locknode == nodename and
+            if ((locknode == 'unknown' or locknode == nodename) and
                 os.path.isdir(os.path.join('/proc', str(os.getpid()))) and
-                not os.path.isdir(os.path.join('/proc', lockpid))):
+                not os.path.isdir(os.path.join('/proc', str(lockpid)))):
                 log("Removing stale lockfile %s for %s %s" %
                     (lockfile, locknode, lockpid))
                 try:
                     os.unlink(lockfile)
-                except OSError, e:
+                except OSError as e:
                     error("Cannot remove %s: %s" % (lockfile, e))
             else:
                 error("Cannot get lock via %s: node=%s pid=%s" %
@@ -173,7 +173,7 @@ def mkdir(dirname):
     log("Making new directory: %s" % dirname)
     try:
         os.mkdir(dirname, default_mode)
-    except os.error, e:
+    except os.error as e:
         error("Cannot mkdir: %s" % e)
 
 def rmtree(dirname):
@@ -187,7 +187,7 @@ def rmtree(dirname):
             log("Child was terminated by signal %d" % -retcode)
         else:
             log("Child returned %d" % retcode)
-    except os.error, e:
+    except os.error as e:
         error("Removal of %s failed: %s" % (dirname, e))
 
 def rename(old,new):
@@ -199,7 +199,7 @@ def rename(old,new):
         error("Target of rename exists: %s" % new)
     try:
         os.rename(old, new)
-    except os.error, e:
+    except os.error as e:
         error("Cannot rename: %s", e)
 
 def get_directory_list(level):
@@ -225,11 +225,11 @@ def add_timestamp(level, name):
     timestampfile = os.path.join(name, timestampbase)
     try:
         f = open(timestampfile, 'a')
-    except IOError, e:
+    except IOError as e:
         error("Could not open %s: %s" % (timestampfile, e))
     except:
         error("Could not open %s: %s" % (timestampfile, sys.exc_info()[0]))
-    print >>f, level_name, timestamp, time.ctime()
+    print(level_name, timestamp, time.ctime(), file=f)
     f.close()
 
 def get_timestamp(level):
@@ -370,7 +370,7 @@ def drain(p, outputfile = None, match = None):
     if outputfile:
         try:
             output = open(outputfile, 'a')
-        except IOError, e:
+        except IOError as e:
             error("Could not open %s: %s" % (outputfile, e))
         except:
             error("Could not open %s: %s" % (outputfile, sys.exc_info()[0]))
@@ -383,7 +383,7 @@ def drain(p, outputfile = None, match = None):
                                                       [],
                                                       [p.stdout, p.stderr],
                                                       1000)
-            except select.error, e:
+            except select.error as e:
                 trace("Exception: %s" % e)
                 break
 
@@ -402,7 +402,7 @@ def drain(p, outputfile = None, match = None):
                         nexttime = time.time() + 1
                     if output and match and re.match(match, l):
                         l = re.sub(match, '', l, count=1).strip()
-                        print >>output, l
+                        print(l, file=output)
                     else:
                         if re.match("send ", l):
                             sendfiles += 1
@@ -451,23 +451,23 @@ def flatten(nested):
 def intperm(perm):
     mode = 0
 
-    if perm[0] == 'r': mode |= 00400
-    if perm[1] == 'w': mode |= 00200
-    if perm[2] == 'x': mode |= 00100
-    if perm[2] == 's': mode |= 04100
-    if perm[2] == 'S': mode |= 01000
+    if perm[0] == 'r': mode |= 0o0400
+    if perm[1] == 'w': mode |= 0o0200
+    if perm[2] == 'x': mode |= 0o0100
+    if perm[2] == 's': mode |= 0o4100
+    if perm[2] == 'S': mode |= 0o1000
 
-    if perm[3] == 'r': mode |= 00040
-    if perm[4] == 'w': mode |= 00020
-    if perm[5] == 'x': mode |= 00010
-    if perm[5] == 's': mode |= 02010
-    if perm[5] == 'S': mode |= 02000
+    if perm[3] == 'r': mode |= 0o0040
+    if perm[4] == 'w': mode |= 0o0020
+    if perm[5] == 'x': mode |= 0o0010
+    if perm[5] == 's': mode |= 0o2010
+    if perm[5] == 'S': mode |= 0o2000
 
-    if perm[6] == 'r': mode |= 00004
-    if perm[7] == 'w': mode |= 00002
-    if perm[8] == 'x': mode |= 00001
-    if perm[8] == 't': mode |= 01001
-    if perm[8] == 'T': mode |= 01000
+    if perm[6] == 'r': mode |= 0o0004
+    if perm[7] == 'w': mode |= 0o0002
+    if perm[8] == 'x': mode |= 0o0001
+    if perm[8] == 't': mode |= 0o1001
+    if perm[8] == 'T': mode |= 0o1000
     return mode
 
 
@@ -533,8 +533,8 @@ current working directory or a directory specified with the -d/--dir opiton.''',
     try:
         (options, args) = parser.parse_args()
     except:
-        print >> sys.stderr, "Option error"
-        print >> sys.stderr
+        print("Option error", file=sys.stderr)
+        print("", file=sys.stderr)
         parser.print_help(file=sys.stderr)
         sys.exit(1)
 
@@ -546,15 +546,15 @@ current working directory or a directory specified with the -d/--dir opiton.''',
         consolelog.setLevel(logging.DEBUG)
 
     if not len(args):
-        print >> sys.stderr, "I'd like a directory to back up please"
-        print >> sys.stderr
+        print("I'd like a directory to back up please", file=sys.stderr)
+        print("", file=sys.stderr)
         parser.print_help(file=sys.stderr)
         sys.exit(1)
 
     if options.list:
         if len(args) != 1:
-            print >> sys.stderr, "Nothing to list"
-            print >> sys.stderr
+            print("Nothing to list", file=sys.stderr)
+            print("", file=sys.stderr)
             parser.print_help(file=sys.stderr)
             sys.exit(1)
 
@@ -571,11 +571,11 @@ current working directory or a directory specified with the -d/--dir opiton.''',
         except:
             try:
                 os.makedirs(options.dir, default_mode)
-            except os.error, e:
+            except os.error as e:
                 error("Cannot create path to %s: %s" % (options.dir, e))
             try:
                 os.chdir(options.dir)
-            except os.error, e:
+            except os.error as e:
                 error("Cannot chdir to %s: %s" % (options.dir, e))
 
     filelog = logging.FileHandler(os.path.join(os.getcwd(), logfilebase))
@@ -602,11 +602,11 @@ current working directory or a directory specified with the -d/--dir opiton.''',
             else:
                 unexpected += 1
         if unexpected > expected * 3:
-            print "Analysis of %s:" % os.getcwd()
-            print "  %d unexpected and %d expected files found" % (unexpected,
-                                                                   expected)
-            print "  This directory is probably not a snapr target"
-            print "  Use -f to force use of this directory"
+            print("Analysis of %s:" % os.getcwd())
+            print("  %d unexpected and %d expected files found" % (unexpected,
+                                                                   expected))
+            print("  This directory is probably not a snapr target")
+            print("  Use -f to force use of this directory")
             sys.exit(1)
 
     if not len(args):
@@ -644,7 +644,7 @@ current working directory or a directory specified with the -d/--dir opiton.''',
 
     try:
         os.chdir(working)
-    except os.error, e:
+    except os.error as e:
         error("Cannot chdir to %s: %s" % (working, e))
 
     extra_options = []
@@ -705,15 +705,16 @@ current working directory or a directory specified with the -d/--dir opiton.''',
                 with open(".snapr.ls") as f:
                     for line in f:
                         (perms, uid, gid, size, date, name) = \
-                                re.split('\s+', line.strip(), maxsplit=5)
+                                re.split(r'\s+', line.strip(), maxsplit=5)
                         name = re.sub(r'\\#([0-7][0-7][0-7])',
                                       r'\\\1',
-                                      name).decode('string-escape')
+                                      name)
+                        name = bytes(name, "utf-8").decode('unicode_escape')
                         trace("%s %s %s %s" % (perms, uid, gid, name))
                         try:
                             os.lchown(name, int(uid), int(gid))
                             chown_count += 1
-                        except OSError, e:
+                        except OSError as e:
                             log("lchown(%d,%d): %s"
                                 % (int(uid), int(gid), e))
                         if not os.path.islink(name):
@@ -721,10 +722,10 @@ current working directory or a directory specified with the -d/--dir opiton.''',
                                 # Could use os.lchmod here when available
                                 os.chmod(name, intperm(perms))
                                 chmod_count += 1
-                            except OSError, e:
+                            except OSError as e:
                                 log("chmod(%o,%s): %s"
                                     % (intperm(perms), perms, e))
-            except IOError, e:
+            except IOError as e:
                 error("Could not open .snapr.ls: %s" % e)
             except:
                 error("Could not open .snapr.ls: %s" % sys.exc_info()[0])
